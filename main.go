@@ -3,20 +3,48 @@ package main
 import (
 	"fmt"
 	"math"
-
-	"github.com/gin-gonic/gin"
+	"net"
 )
 
 func main() {
 	// fmt.Println("hhhh")
 	// fmt.Println(gps84ToGcj02(38.88486388888889, 121.52287222222222))
-	router := gin.Default()
-	router.GET("/", func(c *gin.Context) {
-		var lat = c.Query("lat")
-		var lon = c.Query("lon")
-		fmt.Println(lat, lon)
-	})
-	router.Run(":8080")
+	// router := gin.Default()
+	// router.GET("/", func(c *gin.Context) {
+	// 	var lat = c.Query("lat")
+	// 	var lon = c.Query("lon")
+	// 	fmt.Println(lat, lon)
+	// })
+	// router.Run(":8080")
+	server, err := net.Listen("tcp", ":8080")
+	if err != nil {
+		fmt.Println("open socket error: ", err)
+		return
+	}
+	fmt.Println("server is opening...")
+
+	for {
+		conn, err := server.Accept()
+		if err != nil {
+			fmt.Println("connection error: ", err)
+			continue
+		}
+		go func(c net.Conn) {
+			if c == nil {
+				fmt.Println("unused socket conn")
+				return
+			}
+			buf := make([]byte, 1024)
+			for {
+				cnt, err := c.Read(buf)
+				if cnt == 0 || err != nil {
+					c.Close()
+					break
+				}
+				fmt.Println("received: ", string(buf[:cnt]))
+			}
+		}(conn)
+	}
 }
 
 // Gps 保存地点的经纬度
