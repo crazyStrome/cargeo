@@ -69,7 +69,7 @@ func main() {
 }
 func parseGps(data string) (gps Gps) {
 	var cs = strings.Split(data, ",")
-	if len(cs) != 0 {
+	if len(cs) == 0 {
 		log.Warn("no useful data from device")
 		return
 	}
