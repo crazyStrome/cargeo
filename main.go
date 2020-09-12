@@ -4,51 +4,95 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"os"
+	"strconv"
+	"strings"
+
+	log "github.com/sirupsen/logrus"
 )
 
+func init() {
+	// 设置日志格式为json格式
+	log.SetFormatter(&log.JSONFormatter{})
+
+	// 设置将日志输出到标准输出（默认的输出为stderr，标准错误）
+	// 日志消息输出可以是任意的io.writer类型
+	log.SetOutput(os.Stdout)
+
+	// 设置日志级别为warn以上
+	log.SetLevel(log.InfoLevel)
+}
 func main() {
-	// fmt.Println("hhhh")
-	// fmt.Println(gps84ToGcj02(38.88486388888889, 121.52287222222222))
-	// router := gin.Default()
-	// router.GET("/", func(c *gin.Context) {
-	// 	var lat = c.Query("lat")
-	// 	var lon = c.Query("lon")
-	// 	fmt.Println(lat, lon)
-	// })
-	// router.Run(":8080")
 	server, err := net.Listen("tcp", ":8080")
 	if err != nil {
-		fmt.Println("open socket error: ", err)
+		log.Error("open socket error: ", err)
 		return
 	}
-	fmt.Println("server is opening...")
+	log.Info("server is listening...")
 
 	for {
 		conn, err := server.Accept()
+
 		if err != nil {
 			fmt.Println("connection error: ", err)
 			continue
 		}
+		log.Info("get an connection")
 		go func(c net.Conn) {
 			if c == nil {
-				fmt.Println("unused socket conn")
+				log.Error("unused socket conn")
 				return
 			}
+			defer c.Close()
 			buf := make([]byte, 1024)
+			log.Info(conn.RemoteAddr().String(), " connect to server...")
 			for {
 				cnt, err := c.Read(buf)
 				if cnt == 0 || err != nil {
-					c.Close()
+					log.Warn("connection closed or something error: ", err)
+					// c.Close()
 					break
 				}
-				fmt.Println("received: ", string(buf[:cnt]))
+				var content = string(buf[:cnt])
+				if len(content) > 50 || content[:3] != "Car" {
+					log.Warn("wrong request and data: ", content, " from ", conn.RemoteAddr().String())
+					return
+				}
+				var gps = parseGps(content)
+				if gps.Car != "" {
+					log.Info("get gps info: ", gps)
+				}
+				// log.Debug("received: ", content)
 			}
 		}(conn)
+	}
+}
+func parseGps(data string) (gps Gps) {
+	var cs = strings.Split(data, ",")
+	if len(cs) != 0 {
+		log.Warn("no useful data from device")
+		return
+	}
+	var lat, err = strconv.ParseFloat(strings.Split(cs[1], ":")[1], 64)
+	if err != nil {
+		log.Warn("lat format error: ", lat, err)
+		return
+	}
+	lon, err := strconv.ParseFloat(strings.Split(cs[2], ":")[1], 64)
+	if err != nil {
+		log.Warn("lon format error: ", lon, err)
+		return
+	}
+	return Gps{
+		Car: strings.Split(cs[0], ":")[1],
+		Lat: lat,
+		Lon: lon,
 	}
 }
 
 // Gps 保存地点的经纬度
 type Gps struct {
+	Car string
 	Lat float64 // 纬度
 	Lon float64 // 经度
 }
